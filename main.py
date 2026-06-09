@@ -21,6 +21,7 @@ def main():
             "call_c_ram": "[...] C-Motor: Clearing RAM Standby List...",
             "success": "[+] C-Motor executed successfully! System is clean.",
             "launching": "[+] Launching Counter-Strike 2 with ideal parameters...",
+            "ask_launch": "❓ Do you want to launch Counter-Strike 2 now? (Y/N): ",
             "exit": "Press Enter to exit..."
         },
         "ru": {
@@ -32,6 +33,7 @@ def main():
             "call_c_ram": "[...] Си-Мотор: Очищаю Standby List оперативной памяти...",
             "success": "[+] Си-Мотор отработал успешно! Система чиста.",
             "launching": "[+] Запускаю Counter-Strike 2 с идеальными параметрами...",
+            "ask_launch": "❓ Запустить Counter-Strike 2 прямо сейчас? (Y/N): ",
             "exit": "Нажмите Enter для выхода..."
         }
     }
@@ -53,7 +55,7 @@ def main():
         lang = "en" if choice == "1" else "ru"
 
     if not is_admin():
-        args = sys.argv[:] + [f"--lang={lang}"]
+        args = [f'"{arg}"' for arg in sys.argv] + [f"--lang={lang}"]
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(args), None, 1)
         sys.exit(0)
 
@@ -108,9 +110,12 @@ def main():
         print(f"\n[-] Error/Ошибка: {e}")
 
     print("-" * 60)
-    print(txt['launching'])
-    steam_launch = f"start steam://run/730// {launch_options}"
-    os.system(steam_launch)
+
+    ask = input(txt['ask_launch'].strip().lower())
+    if ask in ['y', 'yes', 'д', 'да', '']:
+        print(txt['launching'])
+        steam_launch = f"start steam://run/730// {launch_options}"
+        os.system(steam_launch)
 
     print("=" * 60)
     input(f"\n{txt['exit']}")
