@@ -12,6 +12,10 @@
 
 ### 🚀 Eliminate Stutters • Stabilize FPS • Clean Your System Before Launch
 
+ Выберите язык / Select Language |
+|:---:|
+| en **English** (Current) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [ru **Russia**](./README_RU.md) |
+
 </div>
 
 ---
