@@ -10,6 +10,10 @@ int silent_delete(const char* path) {
     char double_null_path[MAX_PATH + 2] = {0};
     snprintf(double_null_path, MAX_PATH, "%s", path);
 
+    int len = strlen(double_null_path);
+    double_null_path[len] = '\0';
+    double_null_path[len + 1] = '\0';
+
     SHFILEOPSTRUCTA fileOp = {0};
     fileOp.wFunc = FO_DELETE;
     fileOp.pFrom = double_null_path;
@@ -26,17 +30,17 @@ __declspec(dllexport) int clear_gpu_cache() {
         char path[MAX_PATH];
 
         snprintf(path, sizeof(path), "%s\\D3DSCache", localappdata);
-        success &= silent_delete(path);
+        success = success && silent_delete(path);
 
         snprintf(path, sizeof(path), "%s\\NVIDIA\\DXCache", localappdata);
-        success &= silent_delete(path);
+        success = success && silent_delete(path);
 
         snprintf(path, sizeof(path), "%s\\NVIDIA\\GLCache", localappdata);
-        success &= silent_delete(path);
+        success = success && silent_delete(path);
 
-        
+
         snprintf(path, sizeof(path), "%s\\AMD\\DxCache", localappdata);
-        success &= silent_delete(path);
+        success = success && silent_delete(path);
     }
     return success;
 }
