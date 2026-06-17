@@ -52,7 +52,7 @@ The primary goal is to improve:
 | 🧠 Smart CPU Core Allocation     | Detects CPU threads and divides them by two to target physical cores only (SMT / Hyper-Threading aware) | Reduces shader-compilation related stutters      |
 | 🎮 GPU Cache Reset               | Cleans DXCache and GLCache folders used by NVIDIA, AMD and DirectX                                      | Restores smoothness after driver or game updates |
 | 🔥 Steam Shader Cleanup          | Removes obsolete shader data from Steam AppID 730 cache                                                 | Faster map loading                               |
-| 🧹 Memory Optimization           | Calls `SetProcessWorkingSetSize()` to trim process working sets                                         | Frees unnecessary memory usage                   |
+| 🧹 Memory Optimization | Clears system Standby List and working sets using native Windows API | Frees cached RAM for better performance |
 | 🛡 Defender Exclusion Automation | Automatically adds CS2 directory to Windows Defender exclusions                                         | Prevents background scanning during gameplay     |
 | 🚨 Anti-Hang Protection          | Forcefully terminates stuck `cs2.exe` processes before launch                                           | Prevents launch conflicts                        |
 | 🚀 Perfect Launch Generator      | Generates optimized launch options and starts CS2 through Steam                                         | Consistent startup configuration                 |
