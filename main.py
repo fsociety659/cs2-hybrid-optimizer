@@ -20,6 +20,16 @@ except ImportError:
         BRIGHT = RESET_ALL = ""
 
 LOG_FILE = "optimizer_log.txt"
+MAX_LOG_SIZE = 1 * 1024 * 1024
+
+def rotate_log():
+    if os.path.exists(LOG_FILE) and os.path.getsize(LOG_FILE) > MAX_LOG_SIZE:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup = f"{LOG_FILE}.{timestamp}.bak"
+        try:
+            os.rename(LOG_FILE, backup)
+        except:
+            pass
 
 def log(message: str):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -37,6 +47,8 @@ def is_admin():
         return False
 
 def get_folder_size_mb(path: str) -> float:
+    if not os.path.exists(path):
+        return 0.0
     total = 0
     try:
         for dirpath, _, filenames in os.walk(path):
@@ -61,27 +73,31 @@ def get_steam_path() -> str:
 
 def flush_dns(txt):
     cprint(txt["dns_flush"], Fore.CYAN)
-    result = subprocess.run("ipconfig /flushdns", shell=True, capture_output=True)
-    if result.returncode == 0:
-        cprint(txt["dns_ok"], Fore.GREEN)
-        log("DNS cache flushed successfully")
-    else:
-        cprint(txt["dns_fail"], Fore.YELLOW)
-        log("DNS flush failed")
+    try:
+        result = subprocess.run(["ipconfig", "/flushdns"], capture_output=True, text=True)
+        if result.returncode == 0:
+            cprint(txt["dns_ok"], Fore.GREEN)
+            log("DNS cache flushed successfully")
+        else:
+            cprint(txt["dns_fail"], Fore.YELLOW)
+            log(f"DNS flush failed: {result.stderr.strip()}")
+    except Exception as e:
+        cprint(f"{txt['dns_fail']}: {e}", Fore.YELLOW)
+        log(f"DNS flush error: {e}")
 
 def set_high_performance_power_plan(txt):
     cprint(txt["power_plan"], Fore.CYAN)
     try:
         result = subprocess.run(
-            'powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c',
-            shell=True, capture_output=True
+            ["powercfg", "/setactive", "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"],
+            capture_output=True, text=True
         )
         if result.returncode == 0:
             cprint(txt["power_ok"], Fore.GREEN)
             log("Power plan set to High Performance")
         else:
             cprint(txt["power_fail"], Fore.YELLOW)
-            log("Failed to set power plan")
+            log(f"Power plan set failed: {result.stderr.strip()}")
     except Exception as e:
         cprint(f"{txt['power_fail']}: {e}", Fore.YELLOW)
         log(f"Power plan error: {e}")
@@ -151,7 +167,20 @@ def generate_autoexec(cs2_path: str, txt):
         cprint(f"{txt['autoexec_fail']}: {e}", Fore.YELLOW)
         log(f"autoexec generation error: {e}")
 
+def add_defender_exclusion(path: str):
+    try:
+        subprocess.run(
+            ["powershell", "-Command", f"Add-MpPreference -ExclusionPath '{path}'"],
+            capture_output=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        log(f"Defender exclusion added: {path}")
+    except:
+        pass
+
 def main():
+    rotate_log()
+
     strings_db = {
         "en": {
             "title":         "CS2 HYBRID OPTIMIZER v2.0  |  Python + C",
@@ -263,29 +292,21 @@ def main():
         candidate = os.path.normpath(f"{steam_path}/steamapps/common/Counter-Strike 2")
         if os.path.exists(candidate):
             cs2_path = candidate
-            try:
-                subprocess.run(
-                    f'powershell -Command "Add-MpPreference -ExclusionPath \'{cs2_path}\'"',
-                    shell=True, capture_output=True
-                )
-                log(f"Defender exclusion added: {cs2_path}")
-            except:
-                pass
+            add_defender_exclusion(cs2_path)
 
-    # ── Закрыть cs2.exe ────────────────────────────────
     cprint(txt["checking"], Fore.CYAN)
-    os.system("taskkill /f /im cs2.exe >nul 2>&1")
+    try:
+        subprocess.run(["taskkill", "/f", "/im", "cs2.exe"], capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+    except:
+        pass
 
-    # ── C-движок ───────────────────────────────────────
     if getattr(sys, 'frozen', False):
         base_path = sys._MEIPASS
     else:
         base_path = os.path.dirname(__file__)
 
     freed_total = 0.0
-
     localappdata = os.environ.get("LOCALAPPDATA", "")
-    progfiles    = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
 
     cache_paths = {
         "D3DSCache":    os.path.join(localappdata, "D3DSCache"),
@@ -301,22 +322,25 @@ def main():
         mb = get_folder_size_mb(path)
         freed_total += mb
         if mb > 0:
-            log(f"Cache [{name}]: {mb} MB queued for deletion")
+            log(f"Cache [{name}] before cleanup: {mb} MB")
 
     try:
         dll_path = os.path.join(base_path, 'cleaner.dll')
         c_library = ctypes.CDLL(dll_path)
 
         cprint(txt["call_c_gpu"], Fore.CYAN)
-        c_library.clear_gpu_cache()
+        gpu_ok = c_library.clear_gpu_cache()
+        log(f"GPU cache cleanup returned: {gpu_ok}")
 
         cprint(txt["call_c_steam"], Fore.CYAN)
         c_library.clear_steam_shader_cache_ex.argtypes = [ctypes.c_char_p]
         steam_shader_path = (steam_path or "").encode("utf-8") if steam_path else b""
-        c_library.clear_steam_shader_cache_ex(steam_shader_path)
+        steam_ok = c_library.clear_steam_shader_cache_ex(steam_shader_path)
+        log(f"Steam shader cache cleanup returned: {steam_ok}")
 
         cprint(txt["call_c_ram"], Fore.CYAN)
-        c_library.clear_ram_standby_list()
+        ram_ok = c_library.clear_ram_standby_list()
+        log(f"RAM standby list cleanup returned: {ram_ok}")
 
         cprint(f"\n{txt['success']}", Fore.GREEN, bright=True)
         log("C-engine finished successfully")
@@ -338,7 +362,7 @@ def main():
     cprint(f"\n  ══ {txt['summary']} ══", Fore.MAGENTA, bright=True)
     cprint(f"  {txt['freed']}: {freed_total:.1f} MB", Fore.GREEN, bright=True)
     cprint(f"  {txt['log_saved']}: {LOG_FILE}", Fore.YELLOW)
-    log(f"Total freed: {freed_total:.1f} MB")
+    log(f"Total freed (estimated): {freed_total:.1f} MB")
     log("=" * 50)
 
     cprint("=" * 62, Fore.CYAN, bright=True)
@@ -346,7 +370,10 @@ def main():
     ask = input(f"\n  {txt['ask_launch']}").strip().lower()
     if ask in ['y', 'yes', 'д', 'да', '']:
         cprint(txt["launching"], Fore.GREEN, bright=True)
-        os.system(f'start steam://run/730// {launch_options}')
+        try:
+            subprocess.Popen(f'start steam://run/730// {launch_options}', shell=True)
+        except:
+            os.system(f'start steam://run/730// {launch_options}')
         import threading
         threading.Timer(5.0, set_cs2_priority, args=[txt]).start()
 
