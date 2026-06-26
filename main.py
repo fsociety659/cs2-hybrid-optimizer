@@ -167,16 +167,71 @@ def generate_autoexec(cs2_path: str, txt):
         cprint(f"{txt['autoexec_fail']}: {e}", Fore.YELLOW)
         log(f"autoexec generation error: {e}")
 
-def add_defender_exclusion(path: str):
+def add_defender_exclusion(path: str, txt):
+    cprint(txt["defender"], Fore.CYAN)
     try:
         subprocess.run(
             ["powershell", "-Command", f"Add-MpPreference -ExclusionPath '{path}'"],
             capture_output=True,
             creationflags=subprocess.CREATE_NO_WINDOW
         )
+        cprint(f"{txt['defender_ok']}: {path}", Fore.GREEN)
         log(f"Defender exclusion added: {path}")
-    except:
-        pass
+    except Exception as e:
+        cprint(f"{txt['defender_fail']}: {e}", Fore.YELLOW)
+        log(f"Defender exclusion error: {e}")
+
+def set_win32_priority_separation(txt):
+    cprint(txt["priority_sep"], Fore.CYAN)
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SYSTEM\CurrentControlSet\Control\PriorityControl",
+            0, winreg.KEY_SET_VALUE
+        )
+        winreg.SetValueEx(key, "Win32PrioritySeparation", 0, winreg.REG_DWORD, 0x26)
+        winreg.CloseKey(key)
+        cprint(txt["priority_sep_ok"], Fore.GREEN)
+        log("Win32PrioritySeparation set to 0x26 (foreground-favoring)")
+    except Exception as e:
+        cprint(f"{txt['priority_sep_fail']}: {e}", Fore.YELLOW)
+        log(f"Win32PrioritySeparation error: {e}")
+
+def set_system_responsiveness(txt):
+    cprint(txt["sys_resp"], Fore.CYAN)
+    try:
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+            0, winreg.KEY_SET_VALUE
+        )
+        winreg.SetValueEx(key, "SystemResponsiveness", 0, winreg.REG_DWORD, 0)
+        winreg.CloseKey(key)
+        cprint(txt["sys_resp_ok"], Fore.GREEN)
+        log("SystemResponsiveness set to 0")
+    except Exception as e:
+        cprint(f"{txt['sys_resp_fail']}: {e}", Fore.YELLOW)
+        log(f"SystemResponsiveness error: {e}")
+
+def disable_fullscreen_optimizations(cs2_path: str, txt):
+    cprint(txt["fse"], Fore.CYAN)
+    try:
+        exe_path = os.path.join(cs2_path, "game", "bin", "win64", "cs2.exe")
+        if not os.path.exists(exe_path):
+            cprint(txt["fse_fail"], Fore.YELLOW)
+            return
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers",
+            0, winreg.KEY_SET_VALUE
+        )
+        winreg.SetValueEx(key, exe_path, 0, winreg.REG_SZ, "~ DISABLEDXMAXIMIZEDWINDOWEDMODE")
+        winreg.CloseKey(key)
+        cprint(txt["fse_ok"], Fore.GREEN)
+        log(f"Fullscreen optimizations disabled for {exe_path}")
+    except Exception as e:
+        cprint(f"{txt['fse_fail']}: {e}", Fore.YELLOW)
+        log(f"Fullscreen optimization disable error: {e}")
 
 def main():
     rotate_log()
@@ -212,6 +267,19 @@ def main():
             "summary":       "SUMMARY",
             "log_saved":     "Log saved to",
             "dll_error":     "[ !! ] DLL Error",
+            "call_c_timer":  "[ .. ] C-Engine: Requesting high-precision system timer...",
+            "defender":      "[ .. ] Adding CS2 folder to Defender exclusions...",
+            "defender_ok":   "[ OK ] Defender exclusion added",
+            "defender_fail": "[ !! ] Could not add Defender exclusion",
+            "priority_sep":      "[ .. ] Tuning Win32PrioritySeparation for foreground boost...",
+            "priority_sep_ok":   "[ OK ] Win32PrioritySeparation tuned.",
+            "priority_sep_fail": "[ !! ] Could not tune Win32PrioritySeparation.",
+            "sys_resp":      "[ .. ] Disabling MMCSS background task throttling...",
+            "sys_resp_ok":   "[ OK ] SystemResponsiveness set to 0.",
+            "sys_resp_fail": "[ !! ] Could not set SystemResponsiveness.",
+            "fse":           "[ .. ] Disabling Fullscreen Optimizations for cs2.exe...",
+            "fse_ok":        "[ OK ] Fullscreen Optimizations disabled for CS2.",
+            "fse_fail":      "[ !! ] Could not disable Fullscreen Optimizations.",
         },
         "ru": {
             "title":         "ГИБРИДНЫЙ ОПТИМИЗАТОР CS2 v2.0  |  Python + C",
@@ -243,6 +311,19 @@ def main():
             "summary":       "ИТОГ",
             "log_saved":     "Лог сохранён в",
             "dll_error":     "[ !! ] Ошибка DLL",
+            "call_c_timer":  "[ .. ] Си-Мотор: Запрашиваю точный системный таймер...",
+            "defender":      "[ .. ] Добавляю папку CS2 в исключения Defender...",
+            "defender_ok":   "[ OK ] Исключение Defender добавлено",
+            "defender_fail": "[ !! ] Не удалось добавить исключение Defender",
+            "priority_sep":      "[ .. ] Настраиваю Win32PrioritySeparation для приоритета активного окна...",
+            "priority_sep_ok":   "[ OK ] Win32PrioritySeparation настроен.",
+            "priority_sep_fail": "[ !! ] Не удалось настроить Win32PrioritySeparation.",
+            "sys_resp":      "[ .. ] Отключаю троттлинг фоновых задач (MMCSS)...",
+            "sys_resp_ok":   "[ OK ] SystemResponsiveness установлен в 0.",
+            "sys_resp_fail": "[ !! ] Не удалось установить SystemResponsiveness.",
+            "fse":           "[ .. ] Отключаю Fullscreen Optimizations для cs2.exe...",
+            "fse_ok":        "[ OK ] Fullscreen Optimizations отключены для CS2.",
+            "fse_fail":      "[ !! ] Не удалось отключить Fullscreen Optimizations.",
         }
     }
 
@@ -263,7 +344,11 @@ def main():
         lang = "en" if choice == "1" else "ru"
 
     if not is_admin():
-        args = [f'"{arg}"' for arg in sys.argv] + [f"--lang={lang}"]
+        if getattr(sys, 'frozen', False):
+            arg_list = sys.argv[1:]
+        else:
+            arg_list = sys.argv
+        args = [f'"{arg}"' for arg in arg_list] + [f"--lang={lang}"]
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(args), None, 1)
         sys.exit(0)
 
@@ -292,7 +377,7 @@ def main():
         candidate = os.path.normpath(f"{steam_path}/steamapps/common/Counter-Strike 2")
         if os.path.exists(candidate):
             cs2_path = candidate
-            add_defender_exclusion(cs2_path)
+            add_defender_exclusion(cs2_path, txt)
 
     cprint(txt["checking"], Fore.CYAN)
     try:
@@ -313,6 +398,8 @@ def main():
         "NVIDIA DXCache": os.path.join(localappdata, "NVIDIA", "DXCache"),
         "NVIDIA GLCache": os.path.join(localappdata, "NVIDIA", "GLCache"),
         "AMD DxCache":  os.path.join(localappdata, "AMD", "DxCache"),
+        "AMD OglCache": os.path.join(localappdata, "AMD", "OglCache"),
+        "AMD VkCache":  os.path.join(localappdata, "AMD", "VkCache"),
     }
     if steam_path:
         steam_shader = os.path.join(steam_path, "shadercache", "730")
@@ -342,6 +429,10 @@ def main():
         ram_ok = c_library.clear_ram_standby_list()
         log(f"RAM standby list cleanup returned: {ram_ok}")
 
+        cprint(txt["call_c_timer"], Fore.CYAN)
+        timer_ok = c_library.force_high_precision_timer()
+        log(f"High-precision timer request returned: {timer_ok}")
+
         cprint(f"\n{txt['success']}", Fore.GREEN, bright=True)
         log("C-engine finished successfully")
 
@@ -354,8 +445,11 @@ def main():
     flush_dns(txt)
     set_high_performance_power_plan(txt)
     disable_xbox_gamebar(txt)
+    set_win32_priority_separation(txt)
+    set_system_responsiveness(txt)
     if cs2_path:
         generate_autoexec(cs2_path, txt)
+        disable_fullscreen_optimizations(cs2_path, txt)
 
     cprint("-" * 62, Fore.WHITE)
 
