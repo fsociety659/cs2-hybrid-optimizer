@@ -13,17 +13,8 @@ static int silent_delete(const char* path) {
     char double_null_path[32768];
     ZeroMemory(double_null_path, sizeof(double_null_path));
 
-    char full_path[32768];
-    if (path[0] != '\\' || path[1] != '\\') {
-        if (GetFullPathNameA(path, sizeof(full_path), full_path, NULL) == 0) {
-            strncpy_s(full_path, sizeof(full_path), path, _TRUNCATE);
-        }
-        if (strncmp(full_path, "\\\\?\\", 4) != 0) {
-            char temp[32768];
-            snprintf(temp, sizeof(temp), "\\\\?\\%s", full_path);
-            strncpy_s(full_path, sizeof(full_path), temp, _TRUNCATE);
-        }
-    } else {
+    char full_path[MAX_PATH];
+    if (GetFullPathNameA(path, sizeof(full_path), full_path, NULL) == 0) {
         strncpy_s(full_path, sizeof(full_path), path, _TRUNCATE);
     }
 
@@ -108,14 +99,37 @@ __declspec(dllexport) int clear_ram_standby_list() {
     if (NtSetSysInfo == NULL) return 0;
 
     ULONG sysInfoClass = 80;
-    ULONG cmd;
-    NTSTATUS status1, status2;
+    ULONG cmd = 4;
+    NTSTATUS status = NtSetSysInfo(sysInfoClass, &cmd, sizeof(cmd));
 
-    cmd = 2;
-    status1 = NtSetSysInfo(sysInfoClass, &cmd, sizeof(cmd));
+    return (status == 0) ? 1 : 0;
+}
 
-    cmd = 4;
-    status2 = NtSetSysInfo(sysInfoClass, &cmd, sizeof(cmd));
+typedef NTSTATUS (WINAPI *NtQueryTimerResolution_t)(
+    PULONG MinimumResolution,
+    PULONG MaximumResolution,
+    PULONG CurrentResolution
+);
+typedef NTSTATUS (WINAPI *NtSetTimerResolution_t)(
+    ULONG DesiredResolution,
+    BOOLEAN SetResolution,
+    PULONG CurrentResolution
+);
 
-    return (status1 == 0 || status2 == 0) ? 1 : 0;
+__declspec(dllexport) int force_high_precision_timer() {
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+    if (ntdll == NULL) return 0;
+
+    NtQueryTimerResolution_t NtQueryTimerRes =
+        (NtQueryTimerResolution_t)GetProcAddress(ntdll, "NtQueryTimerResolution");
+    NtSetTimerResolution_t NtSetTimerRes =
+        (NtSetTimerResolution_t)GetProcAddress(ntdll, "NtSetTimerResolution");
+    if (NtQueryTimerRes == NULL || NtSetTimerRes == NULL) return 0;
+
+    ULONG minRes, maxRes, curRes;
+    if (NtQueryTimerRes(&minRes, &maxRes, &curRes) != 0) return 0;
+
+    ULONG actual;
+    NTSTATUS status = NtSetTimerRes(maxRes, TRUE, &actual);
+    return (status == 0) ? 1 : 0;
 }
